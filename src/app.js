@@ -6,7 +6,7 @@ const User = require("./models/user");
 app.use(express.json());
 
 app.post("/signup", async (req, res) => {
-  // Creating a new instance of the User Model 
+  // Creating a new instance of the User Model
   // using the data which has been recieved through the POST API
   const user = new User(req.body);
   try {
@@ -19,31 +19,43 @@ app.post("/signup", async (req, res) => {
 
 // Feed API - GET /feed - get all the users from the database
 app.get("/feed", async (req, res) => {
-  try{
+  try {
     const users = await User.find({});
     res.send(users);
   } catch (err) {
     res.status(400).send("Something went wrong");
   }
-})
+});
 
 // Delete API
 app.delete("/user", async (req, res) => {
   const userId = req.body.userId;
-  try{
+  try {
     const user = await User.findByIdAndDelete(userId);
     res.send("User deleted successfully");
   } catch (err) {
     res.status(400).send("Something went wrong");
   }
-})
+});
 
 // Update data of the user
-app.patch("/user", async (req, res) => {
+app.patch("/user/:userId", async (req, res) => {
   const data = req.body;
-  const userId = req.body.userId;
+  const userId = req.params?.userId;
+
   try {
-    const user = await User.findByIdAndUpdate({ _id: userId}, data, {
+    const ALLOWED_UPDATES = ["photoUrl", "about", "age", "skills"];
+
+    const isUpdateAllowed = Object.keys(data).every((k) => {
+      ALLOWED_UPDATES.includes(k);
+    });
+    if (!isUpdateAllowed) {
+      throw new Error("Updates not allowed");
+    }
+    if(data?.skills.length > 10){
+      throw new Error("Skills cannot be more than 10")
+    }
+    const user = await User.findByIdAndUpdate({ _id: userId }, data, {
       returnDocument: "after",
       runValidators: true,
     });
@@ -52,8 +64,7 @@ app.patch("/user", async (req, res) => {
   } catch (err) {
     res.status(400).send("UPDATE FAILED:" + err.message);
   }
-})
-
+});
 
 connectDB()
   .then(() => {
