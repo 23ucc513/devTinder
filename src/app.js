@@ -6,6 +6,7 @@ const bcrypt = require("bcrypt");
 const { validateSignUpData } = require("./utils/validation");
 const cookieParser = require("cookie-parser");
 const jwt = require("jsonwebtoken");
+const { userAuth } = require("./middlewares/auth");
 
 app.use(express.json());
 app.use(cookieParser());
@@ -14,7 +15,7 @@ app.post("/signup", async (req, res) => {
   try {
     // Validation of Data
     validateSignUpData(req);
-    const {firstName, lastName, emailId, password} = req.body;
+    const { firstName, lastName, emailId, password } = req.body;
     // Encrypt the password
     const passwordHash = await bcrypt.hash(password, 10);
     // Creating a new instance of the User Model
@@ -36,23 +37,22 @@ app.post("/login", async (req, res) => {
   try {
     // when one logins , the backend check for valid emailId and password
     // extracting the emailId and password
-    const {emailId, password} = req.body;
+    const { emailId, password } = req.body;
     // find the user with the help of emailId
-    const user = await User.findOne({emailId : emailId});
+    const user = await User.findOne({ emailId: emailId });
     // if that emailId is not present in the database then the user needs to signup
-    if(!user){
+    if (!user) {
       throw new Error("You need to signup. Invalid Credentials");
     }
     // check for password by comparing it with its encrypted - hash
     const isPasswordValid = await bcrypt.compare(password, user.password);
-    if(isPasswordValid){
+    if (isPasswordValid) {
       // create a JWT Token
-      const token = await jwt.sign({_id: user._id}, "DEV@Tinder$790")
+      const token = await jwt.sign({ _id: user._id }, "DEV@Tinder$790");
       // Add the token to cookie and send the response back to the user
       res.cookie("token", token);
       res.send("Login Successfull");
-    }
-    else{
+    } else {
       throw new Error("Invalid Credentials");
     }
   } catch (err) {
@@ -60,26 +60,14 @@ app.post("/login", async (req, res) => {
   }
 });
 
-
-app.get("/profile", async (req, res) => {
-  try {const cookies = req.cookies;
-  const { token } = cookies;
-  if(!token) {
-    throw new Error("Invalid Token");
+app.get("/profile", userAuth, async (req, res) => {
+  try {
+    const user = req.user;
+    res.send(user);
+  } catch (err) {
+    res.status(400).send("ERROR: " + err.message);
   }
-  // validation of cookie/token
-  const decodedMessage = await jwt.verify(token, "DEV@Tinder$790"); // gives back the _id
-  console.log(decodedMessage);
-  const { _id } = decodedMessage;
-  console.log("Logged In user is: " + _id);
-  const user = await User.findById(_id);
-  if(!user){
-    throw new Error("No user found");
-  }
-  res.send(user);} catch (err) {
-    res.status(400).send("ERROR: " + err.message)
-  }
-})
+});
 
 // Feed API - GET /feed - get all the users from the database
 app.get("/feed", async (req, res) => {
