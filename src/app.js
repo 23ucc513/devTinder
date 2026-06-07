@@ -4,8 +4,11 @@ const app = express();
 const User = require("./models/user");
 const bcrypt = require("bcrypt");
 const { validateSignUpData } = require("./utils/validation");
+const cookieParser = require("cookie-parser");
+const jwt = require("jsonwebtoken");
 
 app.use(express.json());
+app.use(cookieParser());
 
 app.post("/signup", async (req, res) => {
   try {
@@ -31,22 +34,52 @@ app.post("/signup", async (req, res) => {
 
 app.post("/login", async (req, res) => {
   try {
+    // when one logins , the backend check for valid emailId and password
+    // extracting the emailId and password
     const {emailId, password} = req.body;
+    // find the user with the help of emailId
     const user = await User.findOne({emailId : emailId});
+    // if that emailId is not present in the database then the user needs to signup
     if(!user){
       throw new Error("You need to signup. Invalid Credentials");
     }
+    // check for password by comparing it with its encrypted - hash
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if(isPasswordValid){
+      // create a JWT Token
+      const token = await jwt.sign({_id: user._id}, "DEV@Tinder$790")
+      // Add the token to cookie and send the response back to the user
+      res.cookie("token", token);
       res.send("Login Successfull");
     }
     else{
       throw new Error("Invalid Credentials");
     }
   } catch (err) {
-    res.status(400).send("ERROR :" + err.message);
+    res.status(400).send("ERROR: " + err.message);
   }
 });
+
+
+app.get("/profile", async (req, res) => {
+  try {const cookies = req.cookies;
+  const { token } = cookies;
+  if(!token) {
+    throw new Error("Invalid Token");
+  }
+  // validation of cookie/token
+  const decodedMessage = await jwt.verify(token, "DEV@Tinder$790"); // gives back the _id
+  console.log(decodedMessage);
+  const { _id } = decodedMessage;
+  console.log("Logged In user is: " + _id);
+  const user = await User.findById(_id);
+  if(!user){
+    throw new Error("No user found");
+  }
+  res.send(user);} catch (err) {
+    res.status(400).send("ERROR: " + err.message)
+  }
+})
 
 // Feed API - GET /feed - get all the users from the database
 app.get("/feed", async (req, res) => {
